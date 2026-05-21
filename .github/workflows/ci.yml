@@ -1,0 +1,30 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  # Runs on GitHub-hosted runners (no GPU): byte-compile + the zero-dependency
+  # self-check, which exercises hardware/regime detection and graceful
+  # degradation. Confirms the harness parses and won't crash on any box.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Byte-compile
+        run: python -m py_compile ov_impact_bench.py gpu_compile_litmus.py
+      - name: Self-check (no GPU required)
+        run: python ov_impact_bench.py --self-check
+
+  # Real GPU-vs-CPU impact A/B. Requires a self-hosted runner with an Intel GPU
+  # on NEO 23.x+ (Arc / Battlemage / Lunar Lake) labeled 'intel-gpu'. Disabled by
+  # default — add such a runner and drop `if: false` to enable.
+  gpu-bench:
+    if: false
+    runs-on: [self-hosted, intel-gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - run: python ov_impact_bench.py --devices GPU,CPU --iters 3 --out results.jsonl

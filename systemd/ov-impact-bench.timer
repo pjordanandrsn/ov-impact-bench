@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly OpenVINO GPU-vs-CPU impact benchmark
+
+[Timer]
+# Sunday 04:00 local; slot chosen to avoid the home-lab's existing Sunday cron burst.
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

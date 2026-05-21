@@ -1,0 +1,10 @@
+# Core runtime — install on the box that has the Intel GPU.
+openvino>=2025.0
+openvino-genai>=2025.0
+huggingface_hub>=0.24   # auto-download OV-IR models given an HF repo id
+# Only needed if you convert your own models instead of pulling pre-made OV-IR repos:
+# optimum-intel[openvino]>=1.21
+#
+# System packages (not pip): `clinfo` (extension/regime detection),
+# optionally `intel-gpu-tools` (intel_gpu_top) for GPU utilisation.
+#   Debian/Ubuntu:  sudo apt install clinfo intel-gpu-tools

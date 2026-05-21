@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenVINO GPU-vs-CPU impact benchmark (one A/B run, appends to results.jsonl)
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+# Edit these paths to match your install + Python env.
+WorkingDirectory=%h/oss/ov-impact-bench
+# If using the HA wall-plug backend, point these at your instance + a 0600 token file:
+#   Environment=OVB_HA_URL=https://homeassistant.local:8123
+#   Environment=OVB_HA_ENTITY=sensor.ai_pc_plug_power
+#   Environment=OVB_HA_TOKEN=...   (better: load from a file in ExecStartPre)
+ExecStart=/usr/bin/env python3 %h/oss/ov-impact-bench/ov_impact_bench.py \
+    --devices GPU,CPU --iters 5 --max-new-tokens 256 \
+    --out %h/ov-impact-bench/results.jsonl
+Nice=10
