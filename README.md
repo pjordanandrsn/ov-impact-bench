@@ -17,18 +17,20 @@ directly; only the *volume* dial (devices × inferences/day) stays a guess.
 - `cpu_busy_pct_during_run` — the "does it make the machine unusable" axis.
 - `delta_gpu_vs_cpu` — speedup ×, energy-ratio ×, **J/token saved**, and a
   projection that plugs the measured J/token into your volume dials.
-- `hardware.regime` — **whether this box exercises the fix**:
-  - `cl_intel_subgroup_local_block_io` **absent** → modern NEO (Arc / Battlemage /
-    Lunar Lake): the fix's emulation path is what makes the GPU run at all.
-  - **present** → fast path (e.g. UHD P630): GPU-vs-CPU delta is still real, but
-    this box can't tell the bug from the fix.
+- `hardware.regime` — **whether this box exercises the fix**. This is set by the
+  **NEO driver version, not the GPU generation**:
+  - `cl_intel_subgroup_local_block_io` **absent** (NEO 23.x+) → the fix's emulation
+    path is what makes the GPU run at all. Confirmed on hardware as old as a Gen 9.5
+    UHD P630 once it's on NEO 23.43 — the regime follows the driver, not the silicon.
+  - **present** (older NEO) → fast path: GPU-vs-CPU delta is still real, but this box
+    can't tell the bug from the fix.
 
 ## Hardware tiers
 
 | box | runs impact A/B? | exercises the fix? |
 |---|---|---|
-| Arc / Battlemage / Lunar Lake (NEO 23.x+) | ✅ | ✅ — the real target |
-| Older Intel iGPU (UHD P630, etc.) | ✅ | ❌ (fast path) — still a valid GPU-vs-CPU baseline |
+| Any Intel GPU on **NEO 23.x+** (Arc, Battlemage, Lunar Lake — *or* a Gen 9.5 UHD P630) | ✅ | ✅ — extension dropped, emulation path exercised |
+| Intel GPU on **older NEO** (extension still present) | ✅ | ❌ (fast path) — still a valid GPU-vs-CPU baseline |
 | NVIDIA / Apple Silicon | ❌ (no `intel_gpu` plugin) | ❌ |
 
 ## First thing to run — anywhere
@@ -39,8 +41,8 @@ python3 ov_impact_bench.py --self-check
 
 Reports detected CPU/GPU, the regime flag, and which energy backends are live on
 this box. Run it on each machine to see what it can measure before trusting a
-full run. **This script has not yet been validated on affected hardware** — the
-self-check is the smoke test.
+full run. The self-check is the smoke test; see **[Validated runs](#validated-runs)**
+below for measured release-crash-vs-fixed-nightly results on a P630 under NEO 23.43.
 
 ## Energy backends (auto-detected, best → convenient)
 
