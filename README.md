@@ -261,22 +261,27 @@ productivity gains, platform-reputation effects, fleet-engagement second-order
 impacts — is real, but it lives outside the instrument and should be argued
 separately, not bolted onto the bench's output.
 
-### The old `devices=60k` default was right for the wrong reasons
+### Reconciling the old `devices=60k` default with the filter chain
 
-The pre-revision flat extrapolation landed about 2–4× the careful estimate. Two
-errors partially canceled: the baseline was inflated by PyPI/Docker noise, and
+The pre-revision flat extrapolation landed at **60k — roughly 2.5× the careful
+midpoint of ~24k**, and sits inside the practical band only at the high dial
+corners (where the baseline is near 1M *and* the LLM-share is near the AI-PC
+slice's upper end). Two errors in the original triangulation partially
+cancelled: the baseline was inflated by PyPI/Docker noise (over-count), and
 the AI-PC laptop population was undercounted because PyPI can't see
-shipped-with-the-OS apps. Once the chain is done honestly the truth lands in
-the same neighborhood, but you can defend each step. The 60k will likely be
-closer to right than wrong by the time the 2024–2026 AI-PC silicon base is
-fully baked in.
+shipped-with-the-OS apps (under-count). But the cancellation is partial, not
+exonerating — 60k overstates the load-bearing estimate by ~2.5×, and the path
+to it becoming the right number requires both the AI-PC silicon base baking in
+fully and the practical population sitting at the upper dial corners over the
+next few years. Filed under "defensible as forward-projection plus optimistic
+dial corners," not "right after all."
 
 ## Honesty notes
 
 - The projection's `j_per_token_saved` is measured; `devices_assumed` and
   `gen_per_day` are **your dials** — see [Population impact (honest)](#population-impact-honest)
-  above for a structured filter-chain estimate (~24k load-bearing, range
-  17–30k). The aggregate $/MWh inherits all the volume uncertainty; only the
-  per-token physics is observed.
+  above for a structured filter-chain estimate (~24k midpoint; ~4–75k honest
+  compound range across the dial widths). The aggregate $/MWh inherits all
+  the volume uncertainty; only the per-token physics is observed.
 - A single box measures one device pairing. Trends across hardware/driver/model
   are what make the dataset valuable — hence the append-only log + the timer.
