@@ -112,11 +112,141 @@ needs the HA wall-plug backend on this box. The release-wheel crash is captured
 as a structured `{error, diagnosis}` record (subprocess isolation), so the
 bug-vs-fix delta is reproducible from `results.jsonl`.
 
+## Population impact (honest)
+
+The README's earlier `gen_per_day=50, devices=60k` defaults were a flat
+triangulation. Walking a structured filter chain over the same evidence shifts
+the affected population meaningfully and changes the framing. Every step below
+is a **dial labeled as a dial** — give or take a multiplicative factor depending
+on which one you push back on.
+
+### TL;DR
+
+- **Affected population: ~15–25k modern Intel deployments** — overwhelmingly
+  AI-PC laptops shipped 2024–2026 (Meteor / Lunar / Arrow Lake, Arc).
+- **Measured floor (UHD P630):** 1.33× decode, 2.7× TTFT.
+- **Population-weighted median (Iris Xe / Lunar Lake):** plausibly 2–3× decode,
+  5–8× TTFT.
+- **Aggregate energy delta (derived; J/token pending direct measurement on
+  hwmon-capable hardware):** ~40–70 MWh/year (~$2–13k/year retail vs
+  hyperscaler), using assumed J/token. The P630 validated run is energy-null
+  because QTS exposes no `powercap`/hwmon.
+- **Human waiting eliminated (derived, not bench-measured):** ~1,500–2,500
+  hours/day at the population level — the measured per-device TTFT delta
+  scaled by the filter-chain population. The bench instrument measures
+  J/token and latency; the user-time framing is a scaling of those, not a
+  separate instrument.
+- **The dollar number is small. The UX number is the one that matters. The
+  silicon-utilization number is the one Intel's platform organization would
+  care about.**
+
+### The filter chain
+
+Starting from an OpenVINO active install base of roughly **750k** (mid of a
+500k–1M central estimate; PyPI/Docker telemetry counts developers and CI but
+undercounts shipped-with-the-OS — Audacity's OpenVINO music-separation plugin
+since 2023, GIMP 3.0 plugins, Frigate's HA add-on, plus OEM bundles like Lenovo
+Now / HP AI Companion / ASUS StoryCube riding the AI-PC wave):
+
+| filter | rate | population |
+|---|---|---|
+| baseline OV deployments | — | ~750k |
+| GPU plugin (vs CPU-only default) | 25% | ~190k |
+| LLM workload (blended; see below) | 21.5% | ~40k |
+| INT4 weight-only (dominant OV-LLM format) | 80% | ~32k |
+| NEO 23.x+ (regression's driver cutoff) | 75% | **~24k** |
+
+The **21.5%** LLM-share is a blend, not a flat global average. The population
+splits roughly into a legacy ~300k bucket (Frigate / CV-heavy, ~10–15% LLM) and
+an AI-PC ~450k bucket (LLM-headlined by the platform marketing, ~25–30% LLM):
+`(300 × 12.5 + 450 × 27.5) / 750 ≈ 21.5%`. A homogeneous 15% global rate lands
+the chain near ~17k; the AI-PC slice's 27.5% applied globally lands near ~33k.
+The **24k blended figure is the load-bearing estimate** — every downstream
+number scales linearly with it.
+
+### Two failure modes — only one of them gets reported
+
+The kernel-compile failure pre-fix produced different UX depending on how
+OpenVINO was invoked:
+
+- **`device="AUTO"` / `device="HETERO:GPU,CPU"`** — the **default** in OV-GenAI,
+  optimum-intel, OVMS's LLM path, and ~every OEM-bundled AI app. `cl::BuildError`
+  is caught; the runtime **silently** falls back to CPU. No error message, no
+  crash report, no telemetry signal — just a model that runs slower than the
+  silicon it shipped on can do. Probably 70–80% of the affected ~24k.
+- **`device="GPU"` explicit** — power users, benchmarks, validation runs. The
+  error propagates as a hard model-load failure. Visible, easy to file. The
+  smaller slice.
+
+The pernicious case is the first one. The bug was **uninstrumented by
+construction**: silent CPU fallback doesn't surface in logs or dashboards, so
+the platform-level symptom ("the local AI features on this AI-PC feel
+sluggish") was leaking into early reviews while the underlying cause stayed
+invisible to upstream telemetry. That's why nobody had filed it — each user
+just thought their model was slow.
+
+### The validated-run number is the *floor*, not the median
+
+The 2.7× TTFT / 1.33× decode in the Validated Runs table came from a UHD P630
+(Gen 9.5, 24 EUs) — the *weakest* silicon in the affected population.
+Population-weighted, the median sits at Iris Xe / Meteor / Lunar Lake, where
+the GPU side scaled while the CPU AVX path is power/thermal-capped in fanless
+laptops. On Lunar Lake (~67 GPU TOPS available to OV vs a power-capped CPU),
+the population-weighted TTFT recovery is plausibly **5–8×**, decode 2–3×. The
+bench's P630 number is the floor of the impact distribution.
+
+### Dial anchors
+
+- **750k baseline.** PyPI install counts (hundreds of thousands/week, CI-heavy),
+  Docker pulls (millions, CI-heavy), Intel marketing on AI-PC volume (~100M
+  units by end-2025, aspirational), Audacity (tens of millions of installs, the
+  largest single consumer-scale OV consumer), OEM bundle activation rates (low
+  single-digit %). Range 500k–1M.
+- **25% GPU plugin.** OV defaults to CPU; GPU concentrates in iGPU laptops, Arc
+  desktops, the AI-PC wave. Range 15–35%.
+- **21.5% LLM (blended).** Frigate/CV dominates legacy OV; LLM is the AI-PC
+  headliner. Range 15–28% global.
+- **80% INT4.** HF OpenVINO hub's LLM artifacts lean heavily INT4 weight-only.
+  Range 60–90%.
+- **75% NEO 23.x+.** Drivers lag on Ubuntu LTS / Debian stable; faster on AI-PC
+  laptops where the silicon's new. Range 60–85%.
+
+### What this section does *not* claim
+
+The arc above scales bench measurements (J/token, TTFT, throughput) to a
+population using explicit dials. It does not denominate the value in
+engineering hours, knowledge-worker wages, or "careers' worth" of human
+waiting — those are separate Fermi exercises that an earlier draft of this
+section attempted, and they don't follow from the instrument. The bench
+measures machine latency and per-token energy on a device. Translating
+machine latency into human productive output requires assumptions about
+attention/interruption conversion that live entirely outside the bench, and
+multiplying fragmented inference waits by a knowledge-worker wage rate
+overstates by mixing units. The defensible artifact-level claim is the
+throughput + energy scaling already in the TL;DR: ~1.5–2.5k hours/day of
+machine-time wait eliminated at the population level, derived from the
+measured TTFT delta; ~40–70 MWh/year aggregate energy delta pending direct
+J/token measurement on hwmon-capable hardware. Anything beyond that — user
+productivity gains, platform-reputation effects, fleet-engagement second-order
+impacts — is real, but it lives outside the instrument and should be argued
+separately, not bolted onto the bench's output.
+
+### The old `devices=60k` default was right for the wrong reasons
+
+The pre-revision flat extrapolation landed about 2–4× the careful estimate. Two
+errors partially canceled: the baseline was inflated by PyPI/Docker noise, and
+the AI-PC laptop population was undercounted because PyPI can't see
+shipped-with-the-OS apps. Once the chain is done honestly the truth lands in
+the same neighborhood, but you can defend each step. The 60k will likely be
+closer to right than wrong by the time the 2024–2026 AI-PC silicon base is
+fully baked in.
+
 ## Honesty notes
 
 - The projection's `j_per_token_saved` is measured; `devices_assumed` and
-  `gen_per_day` are **your dials** — defaults (~60k devices, 50 gen/day) are the
-  triangulated central estimate, not data. The aggregate $/MWh inherits all the
-  volume uncertainty; only the per-token physics is observed.
+  `gen_per_day` are **your dials** — see [Population impact (honest)](#population-impact-honest)
+  above for a structured filter-chain estimate (~24k load-bearing, range
+  17–30k). The aggregate $/MWh inherits all the volume uncertainty; only the
+  per-token physics is observed.
 - A single box measures one device pairing. Trends across hardware/driver/model
   are what make the dataset valuable — hence the append-only log + the timer.

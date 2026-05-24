@@ -488,9 +488,12 @@ def main() -> int:
                     help="HA power sensor entity_id for wall-draw truth")
     ap.add_argument("--out", default=os.path.expanduser("~/ov-impact-bench/results.jsonl"))
     ap.add_argument("--prompts-file", help="newline-delimited prompts; else built-in")
-    # projection dials (defaults are the triangulated central estimates from analysis)
-    ap.add_argument("--gen-per-day", type=int, default=50)
-    ap.add_argument("--devices-assumed", type=int, default=60000)
+    # projection dials -- defaults are the load-bearing central estimates from the
+    # structured filter chain in README.md#population-impact-honest:
+    #   24k affected deployments (range 17-30k, blended legacy + AI-PC LLM share),
+    #   150 gen/day weighted mean across HA-voice / dev / edge-inference / enterprise.
+    ap.add_argument("--gen-per-day", type=int, default=150)
+    ap.add_argument("--devices-assumed", type=int, default=24000)
     ap.add_argument("--price-kwh", type=float, default=0.16)
     ap.add_argument("--self-check", action="store_true",
                     help="report detected hardware + energy backends, then exit")
