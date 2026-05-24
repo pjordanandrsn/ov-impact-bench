@@ -122,20 +122,29 @@ on which one you push back on.
 
 ### TL;DR
 
-- **Affected population: ~15–25k modern Intel deployments** — overwhelmingly
-  AI-PC laptops shipped 2024–2026 (Meteor / Lunar / Arrow Lake, Arc).
+- **Affected population: ~24k load-bearing midpoint; ~4–75k honest compound
+  range across the dial widths.** Overwhelmingly AI-PC laptops shipped
+  2024–2026 (Meteor / Lunar / Arrow Lake, Arc). The wide compound band is the
+  independent-error product of the dial ranges below; some dials correlate
+  (baseline-high implies LLM-share-high), which would narrow it — but that
+  argument lives outside the artifact.
 - **Measured floor (UHD P630):** 1.33× decode, 2.7× TTFT.
-- **Population-weighted median (Iris Xe / Lunar Lake):** plausibly 2–3× decode,
-  5–8× TTFT.
+- **Physics-projected to median silicon (Iris Xe / Lunar Lake), NOT measured:**
+  2–3× decode, 5–8× TTFT. The harness has run on exactly one device (the
+  P630); these brackets come from a thermal-cap argument (faster GPU + power-
+  capped fanless CPU widens the delta), not a measured distribution.
 - **Aggregate energy delta (derived; J/token pending direct measurement on
   hwmon-capable hardware):** ~40–70 MWh/year (~$2–13k/year retail vs
   hyperscaler), using assumed J/token. The P630 validated run is energy-null
   because QTS exposes no `powercap`/hwmon.
-- **Human waiting eliminated (derived, not bench-measured):** ~1,500–2,500
-  hours/day at the population level — the measured per-device TTFT delta
+- **Machine-time wait eliminated (derived, not bench-measured):** ~1,500–2,500
+  hours/day at the population level — the measured per-device latency delta
   scaled by the filter-chain population. The bench instrument measures
-  J/token and latency; the user-time framing is a scaling of those, not a
-  separate instrument.
+  J/token and latency; this is a scaling of those, not a separate instrument.
+  The *human-facing* subset (voice prompts, content generation, anything where
+  a person is actually waiting at the screen) is a fraction of this total —
+  probably 20–40% — because most of the silent-fallback population runs
+  background / OEM-bundled workloads where nobody is blocked.
 - **The dollar number is small. The UX number is the one that matters. The
   silicon-utilization number is the one Intel's platform organization would
   care about.**
@@ -161,8 +170,20 @@ splits roughly into a legacy ~300k bucket (Frigate / CV-heavy, ~10–15% LLM) an
 an AI-PC ~450k bucket (LLM-headlined by the platform marketing, ~25–30% LLM):
 `(300 × 12.5 + 450 × 27.5) / 750 ≈ 21.5%`. A homogeneous 15% global rate lands
 the chain near ~17k; the AI-PC slice's 27.5% applied globally lands near ~33k.
-The **24k blended figure is the load-bearing estimate** — every downstream
+The **24k blended figure is the load-bearing midpoint** — every downstream
 number scales linearly with it.
+
+**Honest compound width across the labeled dial ranges:**
+
+- low corner: `500k × 0.15 × 0.15 × 0.60 × 0.60 ≈ ` **~4k**
+- high corner: `1M × 0.35 × 0.28 × 0.90 × 0.85 ≈ ` **~75k**
+
+That's roughly an order of magnitude span — not the ±25% band an earlier draft
+implied. These are the bounds an independent-error model produces; they should
+not be tightened without a correlation argument the artifact doesn't make.
+(Some dials do correlate: baseline-high implies LLM-share-high since both
+ride the AI-PC wave. Argued separately, that narrows the practical band; not
+relied on here.)
 
 ### Two failure modes — only one of them gets reported
 
@@ -192,8 +213,17 @@ The 2.7× TTFT / 1.33× decode in the Validated Runs table came from a UHD P630
 Population-weighted, the median sits at Iris Xe / Meteor / Lunar Lake, where
 the GPU side scaled while the CPU AVX path is power/thermal-capped in fanless
 laptops. On Lunar Lake (~67 GPU TOPS available to OV vs a power-capped CPU),
-the population-weighted TTFT recovery is plausibly **5–8×**, decode 2–3×. The
-bench's P630 number is the floor of the impact distribution.
+the population-weighted TTFT recovery is **physics-projected** at 5–8× and
+decode at 2–3×.
+
+**Caveat the projection deserves:** the harness has run on exactly one device.
+The "floor, not the median" framing rests on a thermal-cap physics argument
+(faster GPU + power-capped fanless CPU widens the delta as you move up the
+silicon ladder), not on a measured distribution across hardware. Converting
+the assertion into a demonstration is a single second-hardware run away —
+a used X1 Carbon Gen 11 (Iris Xe), a Lunar Lake AI-PC laptop, or a borrowed
+Arc desktop would do it. That belongs on the punch list alongside the
+wall-plug energy run on hwmon-capable hardware.
 
 ### Dial anchors
 
