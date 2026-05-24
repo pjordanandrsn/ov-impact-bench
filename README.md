@@ -283,5 +283,13 @@ dial corners," not "right after all."
   above for a structured filter-chain estimate (~24k midpoint; ~4–75k honest
   compound range across the dial widths). The aggregate $/MWh inherits all
   the volume uncertainty; only the per-token physics is observed.
+- **Adoption velocity is the not-yet-modeled second dial.** The current bench
+  treats the affected population as a snapshot; in practice it's a curve —
+  how quickly the fix propagates from upstream master through 2026.3 stable
+  → optimum-intel / OV-GenAI releases → OEM-bundle refreshes. Until there's
+  a release date to anchor a ramp parameter, the aggregate implicitly assumes
+  instant upgrade, which overstates near-term impact and likely understates
+  long-term as the AI-PC silicon base bakes in. Once 2026.3 ships, adoption
+  velocity displaces "affected population size" as the load-bearing dial.
 - A single box measures one device pairing. Trends across hardware/driver/model
   are what make the dataset valuable — hence the append-only log + the timer.
