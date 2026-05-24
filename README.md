@@ -4,34 +4,34 @@ Measures the **real** GPU-vs-CPU-fallback impact of OpenVINO LLM inference on
 Intel hardware — the per-inference latency / energy / throughput delta that the
 `openvinotoolkit/openvino` `__local` block-read fix (PRs #35661, #35712) unlocks.
 
-It exists to replace one estimate with one measurement. Every "$/Watts saved"
+It exists to replace one estimate with one measurement. Every “$/Watts saved”
 projection bottoms out on a single unknown — **Joules per token saved by staying
 on the GPU instead of falling back to CPU**. This harness measures that number
 directly; only the *volume* dial (devices × inferences/day) stays a guess.
 
 ## What it records, per run
 
-- `tok_s_median`, `ttft_ms_median`, `tpot_ms_median` — from OpenVINO GenAI's
+- `tok_s_median`, `ttft_ms_median`, `tpot_ms_median` — from OpenVINO GenAI’s
   built-in `PerfMetrics` (not hand-timed).
 - `j_per_token_mean`, `active_power_w_mean` — from the best available energy backend.
-- `cpu_busy_pct_during_run` — the "does it make the machine unusable" axis.
+- `cpu_busy_pct_during_run` — the “does it make the machine unusable” axis.
 - `delta_gpu_vs_cpu` — speedup ×, energy-ratio ×, **J/token saved**, and a
   projection that plugs the measured J/token into your volume dials.
 - `hardware.regime` — **whether this box exercises the fix**. This is set by the
   **NEO driver version, not the GPU generation**:
-  - `cl_intel_subgroup_local_block_io` **absent** (NEO 23.x+) → the fix's emulation
+  - `cl_intel_subgroup_local_block_io` **absent** (NEO 23.x+) → the fix’s emulation
     path is what makes the GPU run at all. Confirmed on hardware as old as a Gen 9.5
-    UHD P630 once it's on NEO 23.43 — the regime follows the driver, not the silicon.
+    UHD P630 once it’s on NEO 23.43 — the regime follows the driver, not the silicon.
   - **present** (older NEO) → fast path: GPU-vs-CPU delta is still real, but this box
-    can't tell the bug from the fix.
+    can’t tell the bug from the fix.
 
 ## Hardware tiers
 
-| box | runs impact A/B? | exercises the fix? |
-|---|---|---|
-| Any Intel GPU on **NEO 23.x+** (Arc, Battlemage, Lunar Lake — *or* a Gen 9.5 UHD P630) | ✅ | ✅ — extension dropped, emulation path exercised |
-| Intel GPU on **older NEO** (extension still present) | ✅ | ❌ (fast path) — still a valid GPU-vs-CPU baseline |
-| NVIDIA / Apple Silicon | ❌ (no `intel_gpu` plugin) | ❌ |
+|box                                                                                   |runs impact A/B?         |exercises the fix?                               |
+|--------------------------------------------------------------------------------------|-------------------------|-------------------------------------------------|
+|Any Intel GPU on **NEO 23.x+** (Arc, Battlemage, Lunar Lake — *or* a Gen 9.5 UHD P630)|✅                        |✅ — extension dropped, emulation path exercised  |
+|Intel GPU on **older NEO** (extension still present)                                  |✅                        |❌ (fast path) — still a valid GPU-vs-CPU baseline|
+|NVIDIA / Apple Silicon                                                                |❌ (no `intel_gpu` plugin)|❌                                                |
 
 ## First thing to run — anywhere
 
@@ -48,15 +48,16 @@ below for measured release-crash-vs-fixed-nightly results on a P630 under NEO 23
 
 1. **HA wall plug** — true wall draw incl. discrete GPU + PSU losses;
    topology-independent and the most honest number. Set:
+   
    ```bash
    export OVB_HA_URL=https://homeassistant.local:8123
    export OVB_HA_TOKEN=$(cat ~/.config/ovb/ha-token)   # never paste tokens inline
    python3 ov_impact_bench.py --ha-entity sensor.ai_pc_plug_power
    ```
-2. **Intel RAPL** — CPU package/psys energy. Usually root-only (`energy_uj` is
+1. **Intel RAPL** — CPU package/psys energy. Usually root-only (`energy_uj` is
    `0400 root` on modern kernels) → run with `sudo` or use the HA backend.
    Captures iGPU (inside the package) but **not** a discrete Arc.
-3. **GPU hwmon** — discrete-GPU energy/power via `/sys/class/drm/card*/.../hwmon`.
+1. **GPU hwmon** — discrete-GPU energy/power via `/sys/class/drm/card*/.../hwmon`.
 
 For a discrete Arc the cleanest total is **HA wall plug** (RAPL misses the card);
 for an iGPU, RAPL-package already includes it.
@@ -73,8 +74,8 @@ python3 ov_impact_bench.py \
 Appends one JSON record per run to `~/ov-impact-bench/results.jsonl`, so runs
 accumulate into a trend you can chart over driver/model/hardware changes.
 
-If the GPU device **fails to compile** (the pre-fix failure mode), that device's
-entry is `{"error": ...}` — which is itself the result: it's the bug, captured.
+If the GPU device **fails to compile** (the pre-fix failure mode), that device’s
+entry is `{"error": ...}` — which is itself the result: it’s the bug, captured.
 
 ## Run from now on
 
@@ -97,13 +98,13 @@ exact modern-NEO regime that PR
 [openvinotoolkit/openvino#35712](https://github.com/openvinotoolkit/openvino/pull/35712)
 fixes. Same hardware, same model (`TinyLlama-1.1B-Chat-int4-ov`), two wheels:
 
-| | release `2026.1.0` (pre-fix) | nightly `2026.3.0.dev20260520` (with #35712) |
-|---|---|---|
-| GPU kernel compile | ❌ `cl::BuildError: clBuildProgram` | ✅ compiles |
-| GPU decode | — (falls back to CPU) | 18.4 tok/s |
-| CPU decode | 13.9 tok/s | 13.9 tok/s |
-| **GPU speedup** | — | **1.33×** |
-| **TTFT** | CPU 355 ms | **GPU 133 ms (2.7× faster)** |
+|                  |release `2026.1.0` (pre-fix)      |nightly `2026.3.0.dev20260520` (with #35712)|
+|------------------|----------------------------------|--------------------------------------------|
+|GPU kernel compile|❌ `cl::BuildError: clBuildProgram`|✅ compiles                                  |
+|GPU decode        |— (falls back to CPU)             |18.4 tok/s                                  |
+|CPU decode        |13.9 tok/s                        |13.9 tok/s                                  |
+|**GPU speedup**   |—                                 |**1.33×**                                   |
+|**TTFT**          |CPU 355 ms                        |**GPU 133 ms (2.7× faster)**                |
 
 On the *weakest* affected GPU (24-EU Gen 9.5), the fix recovers ~1.33× decode and
 ~2.7× TTFT versus the CPU fallback it prevents; Arc/Lunar Lake would widen that.
@@ -112,9 +113,16 @@ needs the HA wall-plug backend on this box. The release-wheel crash is captured
 as a structured `{error, diagnosis}` record (subprocess isolation), so the
 bug-vs-fix delta is reproducible from `results.jsonl`.
 
+> **On the `(with #35712)` column:** the `dev20260520` nightly sat right at the
+> #35712 merge boundary, so the compile fix it carried was at minimum #35661
+> (the GEMV/FC kernel, merged May 7 — the path this dense TinyLlama run actually
+> exercises) and possibly both. The GPU compiles either way because the shared
+> `__local` block-read regression is fixed; the bench doesn’t depend on
+> distinguishing which of the two PRs’ commits the wheel happened to include.
+
 ## Population impact (honest)
 
-The README's earlier `gen_per_day=50, devices=60k` defaults were a flat
+The README’s earlier `gen_per_day=50, devices=60k` defaults were a flat
 triangulation. Walking a structured filter chain over the same evidence shifts
 the affected population meaningfully and changes the framing. Every step below
 is a **dial labeled as a dial** — give or take a multiplicative factor depending
@@ -146,30 +154,30 @@ on which one you push back on.
   probably 20–40% — because most of the silent-fallback population runs
   background / OEM-bundled workloads where nobody is blocked.
 - **The dollar number is small. The UX number is the one that matters. The
-  silicon-utilization number is the one Intel's platform organization would
+  silicon-utilization number is the one Intel’s platform organization would
   care about.**
 
 ### The filter chain
 
 Starting from an OpenVINO active install base of roughly **750k** (mid of a
 500k–1M central estimate; PyPI/Docker telemetry counts developers and CI but
-undercounts shipped-with-the-OS — Audacity's OpenVINO music-separation plugin
-since 2023, GIMP 3.0 plugins, Frigate's HA add-on, plus OEM bundles like Lenovo
+undercounts shipped-with-the-OS — Audacity’s OpenVINO music-separation plugin
+since 2023, GIMP 3.0 plugins, Frigate’s HA add-on, plus OEM bundles like Lenovo
 Now / HP AI Companion / ASUS StoryCube riding the AI-PC wave):
 
-| filter | rate | population |
-|---|---|---|
-| baseline OV deployments | — | ~750k |
-| GPU plugin (vs CPU-only default) | 25% | ~190k |
-| LLM workload (blended; see below) | 21.5% | ~40k |
-| INT4 weight-only (dominant OV-LLM format) | 80% | ~32k |
-| NEO 23.x+ (regression's driver cutoff) | 75% | **~24k** |
+|filter                                   |rate |population|
+|-----------------------------------------|-----|----------|
+|baseline OV deployments                  |—    |~750k     |
+|GPU plugin (vs CPU-only default)         |25%  |~190k     |
+|LLM workload (blended; see below)        |21.5%|~40k      |
+|INT4 weight-only (dominant OV-LLM format)|80%  |~32k      |
+|NEO 23.x+ (regression’s driver cutoff)   |75%  |**~24k**  |
 
 The **21.5%** LLM-share is a blend, not a flat global average. The population
 splits roughly into a legacy ~300k bucket (Frigate / CV-heavy, ~10–15% LLM) and
 an AI-PC ~450k bucket (LLM-headlined by the platform marketing, ~25–30% LLM):
 `(300 × 12.5 + 450 × 27.5) / 750 ≈ 21.5%`. A homogeneous 15% global rate lands
-the chain near ~17k; the AI-PC slice's 27.5% applied globally lands near ~33k.
+the chain near ~17k; the AI-PC slice’s 27.5% applied globally lands near ~33k.
 The **24k blended figure is the load-bearing midpoint** — every downstream
 number scales linearly with it.
 
@@ -178,33 +186,51 @@ number scales linearly with it.
 - low corner: `500k × 0.15 × 0.15 × 0.60 × 0.60 ≈ ` **~4k**
 - high corner: `1M × 0.35 × 0.28 × 0.90 × 0.85 ≈ ` **~75k**
 
-That's roughly an order of magnitude span — not the ±25% band an earlier draft
+That’s roughly an order of magnitude span — not the ±25% band an earlier draft
 implied. These are the bounds an independent-error model produces; they should
-not be tightened without a correlation argument the artifact doesn't make.
+not be tightened without a correlation argument the artifact doesn’t make.
 (Some dials do correlate: baseline-high implies LLM-share-high since both
 ride the AI-PC wave. Argued separately, that narrows the practical band; not
 relied on here.)
 
-### Two failure modes — only one of them gets reported
+### Two failure modes — and the reported one is the rarer one
 
-The kernel-compile failure pre-fix produced different UX depending on how
-OpenVINO was invoked:
+The kernel-compile failure produced different UX depending on how OpenVINO was
+invoked, and the difference is the whole story:
 
 - **`device="AUTO"` / `device="HETERO:GPU,CPU"`** — the **default** in OV-GenAI,
-  optimum-intel, OVMS's LLM path, and ~every OEM-bundled AI app. `cl::BuildError`
-  is caught; the runtime **silently** falls back to CPU. No error message, no
-  crash report, no telemetry signal — just a model that runs slower than the
-  silicon it shipped on can do. Probably 70–80% of the affected ~24k.
+  optimum-intel, OVMS’s LLM path, and ~every OEM-bundled AI app. The GPU plugin
+  throws `cl::BuildError` during kernel compilation; the dispatch layer catches
+  it and **silently** falls back to CPU. No error surfaced to the application,
+  no log line in the default configuration, no telemetry signal — just a model
+  running on the CPU it was never meant to run on.
 - **`device="GPU"` explicit** — power users, benchmarks, validation runs. The
-  error propagates as a hard model-load failure. Visible, easy to file. The
-  smaller slice.
+  error propagates as a hard model-load failure: `LOAD_NETWORK` aborts, the
+  model never loads. Visible, filable. **This is the mode both upstream PRs
+  ([#35661](https://github.com/openvinotoolkit/openvino/pull/35661),
+  [#35712](https://github.com/openvinotoolkit/openvino/pull/35712)) document and
+  test — because it’s the one you can see.**
 
-The pernicious case is the first one. The bug was **uninstrumented by
-construction**: silent CPU fallback doesn't surface in logs or dashboards, so
-the platform-level symptom ("the local AI features on this AI-PC feel
-sluggish") was leaking into early reviews while the underlying cause stayed
-invisible to upstream telemetry. That's why nobody had filed it — each user
-just thought their model was slow.
+**How I found it (the silent path, first-hand).** On the home-lab P630 the
+symptom was nothing but latency: a local LLM that felt sluggish, no error
+anywhere, nothing in the application output indicating the GPU wasn’t being
+used. Only the token rate was off. I suspected the GPU wasn’t actually engaged,
+went looking, and traced it to the caught `cl::BuildError` — the runtime was
+downgrading to CPU under `AUTO` without surfacing a thing. That discovery path
+**is** the evidence the failure is silent: a non-expert hits the same wall and
+stops at “my model’s a bit slow,” which is exactly why a regression shipping on
+every Gen 9.5+ part on a modern driver sat unreported. The bug was
+**uninstrumented by construction** — its dominant failure mode emits no signal
+an ordinary user or an upstream dashboard would ever catch.
+
+**Observed vs. estimated, kept separate.** The silent CPU fallback is
+first-party *observed and traced* on the P630 — not inferred from how `AUTO` is
+documented to behave, but seen (as latency only) and then chased to its cause.
+What remains a dial is the *split*: what fraction of the affected ~24k hits the
+silent `AUTO`/HETERO path versus the visible explicit-`GPU` abort. The
+qualitative claim is defensible — `AUTO` is the default across the GenAI /
+optimum-intel / OVMS stack and in OEM bundles, so the silent path is the common
+one — but the **~70–80%** figure is an estimate of that split, not a count.
 
 ### The validated-run number is the *floor*, not the median
 
@@ -217,7 +243,7 @@ the population-weighted TTFT recovery is **physics-projected** at 5–8× and
 decode at 2–3×.
 
 **Caveat the projection deserves:** the harness has run on exactly one device.
-The "floor, not the median" framing rests on a thermal-cap physics argument
+The “floor, not the median” framing rests on a thermal-cap physics argument
 (faster GPU + power-capped fanless CPU widens the delta as you move up the
 silicon ladder), not on a measured distribution across hardware. Converting
 the assertion into a demonstration is a single second-hardware run away —
@@ -236,18 +262,18 @@ wall-plug energy run on hwmon-capable hardware.
   desktops, the AI-PC wave. Range 15–35%.
 - **21.5% LLM (blended).** Frigate/CV dominates legacy OV; LLM is the AI-PC
   headliner. Range 15–28% global.
-- **80% INT4.** HF OpenVINO hub's LLM artifacts lean heavily INT4 weight-only.
+- **80% INT4.** HF OpenVINO hub’s LLM artifacts lean heavily INT4 weight-only.
   Range 60–90%.
 - **75% NEO 23.x+.** Drivers lag on Ubuntu LTS / Debian stable; faster on AI-PC
-  laptops where the silicon's new. Range 60–85%.
+  laptops where the silicon’s new. Range 60–85%.
 
 ### What this section does *not* claim
 
 The arc above scales bench measurements (J/token, TTFT, throughput) to a
 population using explicit dials. It does not denominate the value in
-engineering hours, knowledge-worker wages, or "careers' worth" of human
+engineering hours, knowledge-worker wages, or “careers’ worth” of human
 waiting — those are separate Fermi exercises that an earlier draft of this
-section attempted, and they don't follow from the instrument. The bench
+section attempted, and they don’t follow from the instrument. The bench
 measures machine latency and per-token energy on a device. Translating
 machine latency into human productive output requires assumptions about
 attention/interruption conversion that live entirely outside the bench, and
@@ -259,37 +285,44 @@ measured TTFT delta; ~40–70 MWh/year aggregate energy delta pending direct
 J/token measurement on hwmon-capable hardware. Anything beyond that — user
 productivity gains, platform-reputation effects, fleet-engagement second-order
 impacts — is real, but it lives outside the instrument and should be argued
-separately, not bolted onto the bench's output.
+separately, not bolted onto the bench’s output.
 
 ### Reconciling the old `devices=60k` default with the filter chain
 
 The pre-revision flat extrapolation landed at **60k — roughly 2.5× the careful
 midpoint of ~24k**, and sits inside the practical band only at the high dial
 corners (where the baseline is near 1M *and* the LLM-share is near the AI-PC
-slice's upper end). Two errors in the original triangulation partially
+slice’s upper end). Two errors in the original triangulation partially
 cancelled: the baseline was inflated by PyPI/Docker noise (over-count), and
-the AI-PC laptop population was undercounted because PyPI can't see
+the AI-PC laptop population was undercounted because PyPI can’t see
 shipped-with-the-OS apps (under-count). But the cancellation is partial, not
 exonerating — 60k overstates the load-bearing estimate by ~2.5×, and the path
 to it becoming the right number requires both the AI-PC silicon base baking in
 fully and the practical population sitting at the upper dial corners over the
-next few years. Filed under "defensible as forward-projection plus optimistic
-dial corners," not "right after all."
+next few years. Filed under “defensible as forward-projection plus optimistic
+dial corners,” not “right after all.”
 
 ## Honesty notes
 
-- The projection's `j_per_token_saved` is measured; `devices_assumed` and
+- The projection’s `j_per_token_saved` is measured; `devices_assumed` and
   `gen_per_day` are **your dials** — see [Population impact (honest)](#population-impact-honest)
   above for a structured filter-chain estimate (~24k midpoint; ~4–75k honest
   compound range across the dial widths). The aggregate $/MWh inherits all
   the volume uncertainty; only the per-token physics is observed.
+- **The silent-fallback mode is observed; its population share is not.** The
+  `AUTO` → CPU silent downgrade is first-party traced on the P630 (see
+  [Two failure modes](#two-failure-modes--and-the-reported-one-is-the-rarer-one)).
+  The ~70–80% silent-vs-visible split is an estimate keyed to `AUTO` being the
+  stack default, not a measured device count.
 - **Adoption velocity is the not-yet-modeled second dial.** The current bench
-  treats the affected population as a snapshot; in practice it's a curve —
+  treats the affected population as a snapshot; in practice it’s a curve —
   how quickly the fix propagates from upstream master through 2026.3 stable
-  → optimum-intel / OV-GenAI releases → OEM-bundle refreshes. Until there's
+  → optimum-intel / OV-GenAI releases → OEM-bundle refreshes. Until there’s
   a release date to anchor a ramp parameter, the aggregate implicitly assumes
-  instant upgrade, which overstates near-term impact and likely understates
-  long-term as the AI-PC silicon base bakes in. Once 2026.3 ships, adoption
-  velocity displaces "affected population size" as the load-bearing dial.
+  instant upgrade, which overstates near-term impact; separately, a static
+  population undercounts the long-term as the 2024–2026 AI-PC silicon base
+  grows. Once 2026.3 ships, adoption velocity likely displaces “affected
+  population size” as the load-bearing dial (conditional on the propagation
+  rate relative to the measurement window).
 - A single box measures one device pairing. Trends across hardware/driver/model
   are what make the dataset valuable — hence the append-only log + the timer.
